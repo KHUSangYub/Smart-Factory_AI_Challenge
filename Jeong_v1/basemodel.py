@@ -14,11 +14,7 @@ from PIL import Image, ImageFilter
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, models, transforms
 from tqdm import tqdm
-
-try:
-    import cv2
-except ImportError:
-    cv2 = None
+import cv2
 
 
 def seed_everything(seed: int = 42) -> None:
