@@ -18,8 +18,11 @@ from PIL import Image, ImageFilter
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, models, transforms
 from tqdm import tqdm
-import cv2
 import timm
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 
 # 시드 고정 (재현성 확보)
 def seed_everything(seed=42):
@@ -36,7 +39,7 @@ seed_everything(42)
 # 🌐 데이터셋 경로 설정 (🚨 반드시 본인 환경에 맞게 수정하세요!)
 # ==========================================
 # [1] Colab 또는 Local에서 실행할 경우: 데이터가 저장된 폴더 경로를 입력하세요.
-COLAB_LOCAL_DATA_PATH = '../competition_dataset/NEU-DET_open'
+COLAB_LOCAL_DATA_PATH = '/local_datasets/NEU-DET_open'
 BASE_DIR = COLAB_LOCAL_DATA_PATH
 SAVE_DIR = './saved'
 
@@ -69,9 +72,15 @@ print(f"✅ 현재 디바이스: {DEVICE}")
 # 1. 커스텀 데이터 증강 (모션 블러)
 # ==========================================
 IMG_SIZE = 192
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
+TRAIN_BLUR_KERNEL = 21
+TRAIN_BLUR_P = 0.7
+VAL_BLUR_KERNEL = 21
+
 class RandomConveyorBeltMotionBlur:
-    def __init__(self, kernel_size: int = 21, p: float = 0.7):
-        self.kernel_size = kernel_size
+    def __init__(self, kernel_size: int = TRAIN_BLUR_KERNEL, p: float = TRAIN_BLUR_P):
+        self.kernel_size = int(kernel_size)
         self.p = p
 
     def __call__(self, img: Image.Image) -> Image.Image:
@@ -88,22 +97,51 @@ class RandomConveyorBeltMotionBlur:
 
         return img.filter(ImageFilter.Kernel((self.kernel_size, self.kernel_size), kernel.flatten()))
 
+class FixedConveyorBeltMotionBlur:
+    def __init__(self, kernel_size: int = VAL_BLUR_KERNEL):
+        self.kernel_size = int(kernel_size)
+
+    def __call__(self, img: Image.Image) -> Image.Image:
+        kernel = np.zeros((self.kernel_size, self.kernel_size), dtype=np.float32)
+        kernel[self.kernel_size // 2, :] = 1.0 / self.kernel_size
+
+        if cv2 is not None:
+            img_np = np.array(img)
+            blurred = cv2.filter2D(img_np, -1, kernel)
+            return Image.fromarray(blurred)
+
+        return img.filter(ImageFilter.Kernel((self.kernel_size, self.kernel_size), kernel.flatten()))
+
 # ==========================================
 # 2. 트랜스폼 및 Dataset 세팅
 # ==========================================
-train_transform = transforms.Compose([
-    transforms.Resize((IMG_SIZE, IMG_SIZE)),                          
-    RandomConveyorBeltMotionBlur(kernel_size=21, p=0.7), # 훈련 시 노이즈 예방주사
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
-
-test_transform = transforms.Compose([
+base_eval_transform = [
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+]
+
+train_transform = transforms.Compose([
+    transforms.Resize((IMG_SIZE, IMG_SIZE)),
+    RandomConveyorBeltMotionBlur(kernel_size=TRAIN_BLUR_KERNEL, p=TRAIN_BLUR_P),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
 ])
+
+# Clean validation: 모델 선택/과적합 확인용
+eval_transform = transforms.Compose(base_eval_transform)
+
+# Blur validation: hidden/test 분포 proxy 확인용
+eval_blur_transform = transforms.Compose([
+    transforms.Resize((IMG_SIZE, IMG_SIZE)),
+    FixedConveyorBeltMotionBlur(kernel_size=VAL_BLUR_KERNEL),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+])
+
+# Test는 이미 blur가 들어간 데이터이므로 결정적 전처리만 적용
+test_transform = transforms.Compose(base_eval_transform)
 
 # 캐글 제출용 Test Dataset 클래스 (파일명 추출용)
 class TestDataset(Dataset):
@@ -127,13 +165,17 @@ class TestDataset(Dataset):
 
 # Data Loaders
 train_dataset = datasets.ImageFolder(TRAIN_DIR, transform=train_transform)
-val_dataset = datasets.ImageFolder(VAL_DIR, transform=test_transform)
+val_dataset = datasets.ImageFolder(VAL_DIR, transform=eval_transform)
+val_blur_dataset = datasets.ImageFolder(VAL_DIR, transform=eval_blur_transform)
 
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+val_blur_loader = DataLoader(val_blur_dataset, batch_size=32, shuffle=False)
 
 NUM_CLASSES = len(train_dataset.classes)
 print(f"✅ 클래스 개수: {NUM_CLASSES}")
+print(f"✅ Train blur kernel: {TRAIN_BLUR_KERNEL}, p={TRAIN_BLUR_P}")
+print(f"✅ Validation loaders: clean={len(val_dataset)}, blur_proxy={len(val_blur_dataset)} (kernel={VAL_BLUR_KERNEL})")
 
 # %% [markdown]
 # # Model Definition
@@ -165,8 +207,8 @@ Path(teacher_path).parent.mkdir(parents=True, exist_ok=True)
 
 # %%
 # hyperparameters
-EPOCHS = 30
-lr = 0.0002
+EPOCHS = 20
+lr = 0.001
 
 # preprocess
 teacher.to(DEVICE)
@@ -267,8 +309,8 @@ Path(model_path).parent.mkdir(parents=True, exist_ok=True)
 
 # %%
 # hyperparameters
-EPOCHS = 30
-lr = 0.0002
+EPOCHS = 20
+lr = 0.001
 alpha = 0.4
 temperature = 3.0
 quantize = False
@@ -328,7 +370,7 @@ for epoch in range(EPOCHS):
             targets.extend(labels.cpu().tolist())
             predictions.extend(preds.cpu().tolist())
     
-    val_loss = sum(losses) / len(train_loader.dataset)
+    val_loss = sum(losses) / len(val_loader.dataset)
     val_acc = sum(int(t == p) for t, p in zip(targets, predictions)) / len(targets)
     val_f1 = utils.macro_f1_score(targets, predictions, num_classes)
 
@@ -447,5 +489,3 @@ if quantize:
 # submission_df.head()
 
 # # %%
-
-
