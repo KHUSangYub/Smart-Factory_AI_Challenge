@@ -74,9 +74,9 @@ print(f"✅ 현재 디바이스: {DEVICE}")
 IMG_SIZE = 192
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
-TRAIN_BLUR_KERNEL = 21
+TRAIN_BLUR_KERNEL = 15
 TRAIN_BLUR_P = 0.7
-VAL_BLUR_KERNEL = 21
+VAL_BLUR_KERNEL = 15
 
 class RandomConveyorBeltMotionBlur:
     def __init__(self, kernel_size: int = TRAIN_BLUR_KERNEL, p: float = TRAIN_BLUR_P):
@@ -185,9 +185,9 @@ pretrained = True
 num_classes = 6
 
 # teacher
-weights = models.ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
-teacher = models.resnet50(weights=weights)
-teacher.fc = nn.Linear(teacher.fc.in_features, num_classes)
+weights = models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1 if pretrained else None
+teacher = models.convnext_tiny(weights=weights)
+teacher.classifier[-1] = nn.Linear(teacher.classifier[-1].in_features, num_classes)
 
 # student
 weights = models.MobileNet_V3_Small_Weights.IMAGENET1K_V1 if pretrained else None
@@ -198,7 +198,7 @@ model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, num_classes)
 # # Train Teacher
 
 # %%
-teacher_path = os.path.join(SAVE_DIR, 'checkpoints/teacher_resnet50.pth')
+teacher_path = os.path.join(SAVE_DIR, 'checkpoints/teacher_convnext_tiny.pth')
 Path(teacher_path).parent.mkdir(parents=True, exist_ok=True)
 # checkpoint = torch.load(teacher_path)
 # best_score = checkpoint['macro_f1_score']
@@ -207,8 +207,8 @@ Path(teacher_path).parent.mkdir(parents=True, exist_ok=True)
 
 # %%
 # hyperparameters
-EPOCHS = 20
-lr = 0.001
+EPOCHS = 30
+lr = 0.0002
 
 # preprocess
 teacher.to(DEVICE)
@@ -309,8 +309,8 @@ Path(model_path).parent.mkdir(parents=True, exist_ok=True)
 
 # %%
 # hyperparameters
-EPOCHS = 20
-lr = 0.001
+EPOCHS = 30
+lr = 0.0002
 alpha = 0.4
 temperature = 3.0
 quantize = False
