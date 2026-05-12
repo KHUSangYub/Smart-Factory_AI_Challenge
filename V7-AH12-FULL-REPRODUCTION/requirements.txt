@@ -1,0 +1,26 @@
+# V7-AH12-INTERSECTION-ENSEMBLE Full Reproduction — Python dependencies
+# Tested on Python 3.14 (CPU only), deterministic with seed=42 (Phase A-G) + seed=2026 (Phase I/J)
+
+# Deep learning
+torch>=2.0.0
+torchvision>=0.15.0
+timm>=0.9.0
+onnxruntime>=1.16.0
+
+# Numerics / data
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0       # Phase J: LogisticRegression + CalibratedClassifierCV
+
+# Image processing (Phase I/J hand-crafted features)
+pillow>=10.0.0
+opencv-python>=4.8.0       # FFT / Sobel / Otsu / motion blur
+scikit-image>=0.20.0       # Phase J: local_binary_pattern (LBP histogram for 13D features)
+
+# UX
+tqdm>=4.65.0
+
+# Jupyter (notebook 실행)
+jupyter
+nbconvert
+ipykernel

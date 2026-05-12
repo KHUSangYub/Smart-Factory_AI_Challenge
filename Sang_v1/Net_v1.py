@@ -5,7 +5,7 @@ import random
 import time
 from pathlib import Path
 try:
-    import Jeong_v2.utils as utils
+    import Sang_v1.utils as utils
 except:
     import utils
 
@@ -66,34 +66,61 @@ print(f"✅ 현재 디바이스: {DEVICE}")
 
 # %%
 # ==========================================
-# 1. 커스텀 데이터 증강 (모션 블러)
+# 1. 커스텀 데이터 증강 (모션 블러)  — Sang_v1
 # ==========================================
+# Sang_v1 수정 surface: 본 셀만 변경. 모델/학습/추론 코드는 baseline(Jeong_v1) 유지.
+# 변경 의도: NEU-DET 기반 conveyor 모션 블러 분포에 더 robust하도록
+#   (1) kernel_size를 단일값(21)에서 [11, 27] 범위 랜덤으로 확장 (속도 다양성)
+#   (2) 블러 방향을 항상 수평이 아닌 ±15°에서 회전 (컨베이어 흔들림/카메라 미세 어긋남)
+#   (3) 적용 확률 p=0.7은 baseline 유지
 IMG_SIZE = 192
 class RandomConveyorBeltMotionBlur:
-    def __init__(self, kernel_size: int = 21, p: float = 0.7):
-        self.kernel_size = kernel_size
+    def __init__(
+        self,
+        kernel_size_range=(11, 27),
+        angle_range=(-15.0, 15.0),
+        p: float = 0.7,
+    ):
+        self.kernel_size_range = kernel_size_range
+        self.angle_range = angle_range
         self.p = p
+
+    def _sample_kernel_size(self) -> int:
+        k = random.randint(self.kernel_size_range[0], self.kernel_size_range[1])
+        return k if k % 2 == 1 else k + 1
 
     def __call__(self, img: Image.Image) -> Image.Image:
         if random.random() > self.p:
             return img
 
-        kernel = np.zeros((self.kernel_size, self.kernel_size), dtype=np.float32)
-        kernel[self.kernel_size // 2, :] = 1.0 / self.kernel_size
+        k = self._sample_kernel_size()
+        angle = random.uniform(self.angle_range[0], self.angle_range[1])
+
+        kernel = np.zeros((k, k), dtype=np.float32)
+        kernel[k // 2, :] = 1.0
 
         if cv2 is not None:
+            M = cv2.getRotationMatrix2D((k / 2 - 0.5, k / 2 - 0.5), angle, 1.0)
+            kernel = cv2.warpAffine(kernel, M, (k, k))
+            kernel /= max(kernel.sum(), 1e-6)
+
             img_np = np.array(img)
             blurred = cv2.filter2D(img_np, -1, kernel)
             return Image.fromarray(blurred)
 
-        return img.filter(ImageFilter.Kernel((self.kernel_size, self.kernel_size), kernel.flatten()))
+        kernel /= max(kernel.sum(), 1e-6)
+        return img.filter(ImageFilter.Kernel((k, k), kernel.flatten()))
 
 # ==========================================
 # 2. 트랜스폼 및 Dataset 세팅
 # ==========================================
 train_transform = transforms.Compose([
-    transforms.Resize((IMG_SIZE, IMG_SIZE)),                          
-    RandomConveyorBeltMotionBlur(kernel_size=21, p=0.7), # 훈련 시 노이즈 예방주사
+    transforms.Resize((IMG_SIZE, IMG_SIZE)),
+    RandomConveyorBeltMotionBlur(
+        kernel_size_range=(11, 27),
+        angle_range=(-15.0, 15.0),
+        p=0.7,
+    ),  # 훈련 시 도메인-블러 노이즈 예방주사
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -267,7 +294,7 @@ Path(model_path).parent.mkdir(parents=True, exist_ok=True)
 
 # %%
 # hyperparameters
-EPOCHS = 8
+EPOCHS = 30
 lr = 0.001
 alpha = 0.4
 temperature = 3.0
