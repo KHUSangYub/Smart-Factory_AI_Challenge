@@ -55,7 +55,7 @@ def run_onnx_inference(onnx_path, image_path):
     probabilities = softmax(logits)[0]
     confidence = probabilities[predicted_class]
 
-    print(f"\n✅ Prediction Results:")
+    print(f"\nPrediction Results:")
     print(f"Class Index: {predicted_class}")
     print(f"Confidence:  {confidence:.2%}")
     print(f"Raw Logits:  {logits[0]}")
@@ -68,6 +68,6 @@ if __name__ == "__main__":
     MODEL_PATH = "student_BETA-LION_SHAVED.onnx" 
     
     # For testing purposes, you can point this to an actual image in your dataset
-    TEST_IMAGE_PATH = "../competition_dataset/NEU-DET_open/validation/images/crazing/crazing_1.jpg" 
+    TEST_IMAGE_PATH = "../competition_dataset/NEU-DET_open/validation/images/crazing/crazing_241.jpg" 
     
     run_onnx_inference(MODEL_PATH, TEST_IMAGE_PATH)
