@@ -91,11 +91,16 @@ class TrainingDemonShaver:
             print(f"🔪 👺 Demon Shaver: Found {total_dead} dead neurons across {len(dead_neurons)} layers.")
 
         # Build dependency graph
+        # Note: We need to put the model on CPU or ensure example_input is on correct device
         self.model.eval()
         DG = tp.DependencyGraph().build_dependency(self.model, example_inputs=self.example_input)
 
         pruning_plan = []
         for activation_name, dead_indices in dead_neurons.items():
+            # We need to find the layer that feeds into this activation
+            # Usually it's the preceding Conv/Linear/BN
+            # TorchPruning is smart enough if we give it the right module
+            
             target_module = None
             for name, module in self.model.named_modules():
                 if name == activation_name:
@@ -104,6 +109,9 @@ class TrainingDemonShaver:
             
             if target_module is None: continue
 
+            # Get the pruning group. 
+            # For activations, we typically prune the output channels of the preceding layer.
+            # tp.prune_conv_out_channels works for Conv, Linear, BN, etc.
             try:
                 group = DG.get_pruning_group(target_module, tp.prune_conv_out_channels, idxs=dead_indices)
                 if DG.check_pruning_group(group):
@@ -150,3 +158,25 @@ class TrainingDemonShaver:
         if verbose:
             file_size = os.path.getsize(output_path) / (1024 * 1024)
             print(f"Success! ONNX model saved. Size: {file_size:.2f} MB")
+
+# Example Usage in a Training Loop:
+"""
+shaver = TrainingDemonShaver(model, device=DEVICE)
+
+for epoch in range(EPOCHS):
+    shaver.reset_stats() # Start of epoch
+    
+    model.train()
+    for batch in train_loader:
+        # ... normal training code ...
+        # (Hooks are running in background)
+    
+    # End of Epoch: Time to shave the demons!
+    if epoch > 0 and epoch % 5 == 0: # Maybe shave every 5 epochs
+        model, pruned_map = shaver.shave()
+        
+        if pruned_map:
+            # IMPORTANT: If architecture changed, we MUST update the optimizer
+            # because the old optimizer still holds references to deleted parameters.
+            optimizer = torch.optim.AdamW(model.parameters(), lr=new_lr, ...)
+"""
