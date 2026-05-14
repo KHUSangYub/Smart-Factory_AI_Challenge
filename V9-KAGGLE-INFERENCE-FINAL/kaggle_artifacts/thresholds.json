@@ -1,0 +1,46 @@
+{
+  "wA": 0.7,
+  "class_bias": [
+    2.0,
+    -1.1,
+    1.9,
+    -0.1,
+    1.2,
+    -0.7
+  ],
+  "rule_3way_valid": true,
+  "ALLOWED_TARGETS": [
+    [
+      1,
+      0.99
+    ],
+    [
+      5,
+      0.0
+    ]
+  ],
+  "P_VETO": 0.378883321165461,
+  "r4_valid": true,
+  "R4_cnxt_floor": 0.0,
+  "R4_beta_pit_floor": 0.99,
+  "R4_p_pit_floor": 0.0,
+  "BIDIR_ROL_VETO": 0.9476,
+  "ah12_valid": true,
+  "class_names": [
+    "crazing",
+    "inclusion",
+    "patches",
+    "pitted_surface",
+    "rolled-in_scale",
+    "scratches"
+  ],
+  "CRA": 0,
+  "INC": 1,
+  "PAT": 2,
+  "PIT": 3,
+  "ROL": 4,
+  "SCR": 5,
+  "IMG_SIZE": 192,
+  "NUM_CLASSES": 6,
+  "SEED": 42
+}
