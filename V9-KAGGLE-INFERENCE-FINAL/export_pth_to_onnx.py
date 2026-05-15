@@ -18,6 +18,7 @@
 """
 import json
 import pickle
+import time
 from pathlib import Path
 
 import numpy as np
@@ -64,6 +65,8 @@ TRAIN_OOD_FEATS = SOURCE / 'train_ood_feats.npz'
 SEED = 42
 NUM_CLASSES = 6
 IMG_SIZE = 192
+CHECKPOINT_WAIT_TIMEOUT_SEC = 30 * 60
+CHECKPOINT_STABLE_INTERVAL_SEC = 2
 
 # ============================================================================
 # Step 1 — PyTorch → ONNX (FP32) 변환
@@ -79,12 +82,62 @@ def build_mbv3():
     return s
 
 
+def wait_for_stable_file(path: Path, timeout_sec=CHECKPOINT_WAIT_TIMEOUT_SEC):
+    deadline = time.time() + timeout_sec
+    last_stat = None
+    stable_count = 0
+
+    while True:
+        st = path.stat()
+        current = (st.st_size, st.st_mtime_ns)
+        if current == last_stat:
+            stable_count += 1
+            if stable_count >= 1:
+                return
+        else:
+            stable_count = 0
+            last_stat = current
+
+        if time.time() >= deadline:
+            raise TimeoutError(
+                f"checkpoint did not become stable within {timeout_sec}s: {path}\n"
+                f"  last size: {st.st_size} bytes"
+            )
+        print(f"  ⏳ waiting for stable checkpoint: {path.name} ({st.st_size / 1024**2:.1f} MB)")
+        time.sleep(CHECKPOINT_STABLE_INTERVAL_SEC)
+
+
+def load_checkpoint(ckpt_path: Path, timeout_sec=CHECKPOINT_WAIT_TIMEOUT_SEC):
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"checkpoint not found: {ckpt_path}")
+
+    deadline = time.time() + timeout_sec
+    while True:
+        wait_for_stable_file(ckpt_path, timeout_sec=max(1, int(deadline - time.time())))
+        size_mb = ckpt_path.stat().st_size / 1024**2
+        print(f"  ↳ load {ckpt_path.name} ({size_mb:.1f} MB)")
+        try:
+            return torch.load(ckpt_path, map_location='cpu', weights_only=False)
+        except RuntimeError as e:
+            msg = str(e)
+            if 'failed finding central directory' not in msg:
+                raise
+            if time.time() >= deadline:
+                raise RuntimeError(
+                    f"checkpoint zip is incomplete or corrupted: {ckpt_path}\n"
+                    f"  size: {ckpt_path.stat().st_size} bytes\n"
+                    "  The file stayed unreadable after waiting. Recreate this .pth file."
+                ) from e
+            print(f"  ⏳ checkpoint still incomplete; retrying: {ckpt_path.name}")
+            time.sleep(CHECKPOINT_STABLE_INTERVAL_SEC)
+
+
 def export_onnx(model, ckpt_path, out_path):
     """학습된 .pth → ONNX 변환.
     opset 17 사용 (LayerNorm/GELU/GroupNorm 의 native op 변환 → 정확도 향상).
     do_constant_folding=False — constant folding 으로 인한 미세 정밀도 손실 차단.
     """
-    ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+    ckpt = load_checkpoint(ckpt_path)
     model.load_state_dict(ckpt['state_dict'])
     model.eval()
 
@@ -110,7 +163,7 @@ export_onnx(build_mbv3(), PTH_BIDIR, ARTIFACTS / 'student_BIDIR.onnx')
 
 # ConvNeXt-Tiny teacher
 cnxt = timm.create_model('convnext_tiny', pretrained=False, num_classes=NUM_CLASSES)
-ckpt = torch.load(PTH_CNXT, map_location='cpu', weights_only=False)
+ckpt = load_checkpoint(PTH_CNXT)
 cnxt.load_state_dict(ckpt['state_dict'])
 cnxt.eval()
 cnxt_onnx_path = ARTIFACTS / 'teacher_convnext_tiny.onnx'

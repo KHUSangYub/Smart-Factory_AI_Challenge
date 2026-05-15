@@ -1,0 +1,112 @@
+{
+  "iter_name": "V9-HONEST-179-180-FROM-SCRATCH",
+  "stage": 2,
+  "type": "implementation",
+  "hypothesis": "iter_016 (R3+veto+AH12) + R4 target=pit via 2D grid",
+  "seed": 42,
+  "aug_seed": 42,
+  "device": "cuda",
+  "submission_md5": "9d2ba826379346474ffad4a27cfcd3a5",
+  "rule_3way_valid": true,
+  "rule_3way_allowed_targets": [
+    {
+      "target_class": 1,
+      "target_name": "inclusion",
+      "cnxt_floor": 0.97,
+      "N": 14,
+      "beta_ok": 14,
+      "champ_ok": 0,
+      "prec": 1.0,
+      "gain": 14
+    }
+  ],
+  "rule_A_AH12_valid": true,
+  "rule_A_inc_fp": 0,
+  "p_veto": 0.7987019230769231,
+  "veto_blocks": [
+    {
+      "name": "test_097.jpg",
+      "reason": "p_pit_veto",
+      "p_pit": 1.0,
+      "P_VETO": 0.7987019230769231,
+      "from": 3,
+      "would_be": 1
+    }
+  ],
+  "r4_valid": true,
+  "r4_thresholds": {
+    "cnxt_floor": 0.0,
+    "beta_pit_floor": 0.9,
+    "p_pit_floor": 0.0,
+    "bidir_rol_veto": 0.0212
+  },
+  "r4_veto_blocks": [],
+  "r4_ood": {
+    "N": 17,
+    "beta_ok": 17,
+    "champ_ok": 0,
+    "prec": 1.0,
+    "gain": 17
+  },
+  "override_fires": 3,
+  "override_log": [
+    {
+      "name": "test_006.jpg",
+      "rule": "R4_pit",
+      "from": 0,
+      "to": 3,
+      "meta": {
+        "beta_argmax": 3,
+        "cnxt_argmax": 3,
+        "beta_pit": 0.999737560749054,
+        "cnxt_pit": 0.997951328754425,
+        "bidir_rol": 4.751282460802031e-07,
+        "p_pit": 0.0,
+        "cnxt_floor": 0.0,
+        "beta_pit_floor": 0.9,
+        "p_pit_floor": 0.0,
+        "bidir_rol_veto": 0.0212
+      }
+    },
+    {
+      "name": "test_028.jpg",
+      "rule": "R4_pit",
+      "from": 0,
+      "to": 3,
+      "meta": {
+        "beta_argmax": 3,
+        "cnxt_argmax": 3,
+        "beta_pit": 0.9999934434890747,
+        "cnxt_pit": 0.9981855750083923,
+        "bidir_rol": 3.7460931707755663e-06,
+        "p_pit": 0.0,
+        "cnxt_floor": 0.0,
+        "beta_pit_floor": 0.9,
+        "p_pit_floor": 0.0,
+        "bidir_rol_veto": 0.0212
+      }
+    },
+    {
+      "name": "test_114.jpg",
+      "rule": "A_AH12",
+      "from": 1,
+      "to": 3,
+      "meta": {
+        "p_pit": 0.8103685897435898
+      }
+    }
+  ],
+  "input_pth_md5": {
+    "student_BETA": "05a5a96ac97cc1a3c3292c6e4353a962",
+    "student_BIDIR": "cf9a8957b0e09d53f4673cf5bbc5ac74",
+    "cnxt": "cfcc5f3313625ef6312b407679d51dad"
+  },
+  "t_inference": 1.1009120792150497,
+  "env": {
+    "os": "Linux-5.4.0-216-generic-x86_64-with-glibc2.31",
+    "python": "3.12.13",
+    "torch": "2.5.1+cu121",
+    "numpy": "2.4.4",
+    "timm": "1.0.26"
+  }
+}

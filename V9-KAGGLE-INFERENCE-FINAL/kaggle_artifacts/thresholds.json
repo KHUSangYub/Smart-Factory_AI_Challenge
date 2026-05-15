@@ -12,19 +12,15 @@
   "ALLOWED_TARGETS": [
     [
       1,
-      0.99
-    ],
-    [
-      5,
-      0.0
+      0.97
     ]
   ],
-  "P_VETO": 0.378883321165461,
+  "P_VETO": 0.7987019230769231,
   "r4_valid": true,
   "R4_cnxt_floor": 0.0,
-  "R4_beta_pit_floor": 0.99,
+  "R4_beta_pit_floor": 0.9,
   "R4_p_pit_floor": 0.0,
-  "BIDIR_ROL_VETO": 0.9476,
+  "BIDIR_ROL_VETO": 0.0212,
   "ah12_valid": true,
   "class_names": [
     "crazing",
