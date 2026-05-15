@@ -20,6 +20,7 @@ dependencies = [
 
     # Phase D/E feature extraction
     "scikit-image==0.26.0",
+    "onnx",
     "onnxruntime==1.26.0",
 
     # UX
